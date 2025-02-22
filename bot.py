@@ -138,7 +138,10 @@ async def button(client, callback_query):
 
 # Scheduler for Auto Email Deletion
 scheduler.add_job(delete_expired_emails, "interval", minutes=1)
-scheduler.start()
+async def main():
+    scheduler.start()  # Start the scheduler properly
+    await bot.start()  # Start bot properly in an async function
+    print("✅ Bot is running...")
+    await asyncio.Event().wait()  # Keep it running indefinitely
 
-# Run Bot
-bot.run()
+asyncio.run(main())  # Run the event loop properly
