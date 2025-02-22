@@ -1,5 +1,3 @@
-import os
-import time
 import asyncio
 from datetime import datetime, timedelta
 from pyrogram import Client, filters
@@ -24,97 +22,119 @@ emails_collection = db["emails"]
 bot = Client("temp_mail_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 scheduler = AsyncIOScheduler()
 
-# Function to generate a new temporary email
+# Generate Unique Temporary Email
 def generate_temp_email(user_id):
     email = f"user{user_id}@tempmailbot.com"
-    emails_collection.insert_one({
-        "user_id": user_id,
-        "email": email,
-        "created_at": datetime.utcnow()
-    })
+    emails_collection.update_one({"user_id": user_id}, {"$set": {"email": email, "created_at": datetime.utcnow()}}, upsert=True)
     return email
 
-# Function to delete expired emails
+# Function to Delete Expired Emails
 async def delete_expired_emails():
     now = datetime.utcnow()
     expired_emails = emails_collection.find({"created_at": {"$lt": now - timedelta(minutes=10)}})
-    
+
     for email in expired_emails:
-        bot.send_message(email["user_id"], f"🗑️ Your temporary email `{email['email']}` has expired! Generate a new one using `/new`.")
+        bot.send_message(email["user_id"], f"🗑️ **Your temporary email `{email['email']}` has expired!**\nGenerate a new one using `/new`.")
         emails_collection.delete_one({"_id": email["_id"]})
 
-# Command: Start
+# Start Command
 @bot.on_message(filters.command("start"))
 async def start(client, message):
     user_id = message.from_user.id
     users_collection.update_one({"user_id": user_id}, {"$set": {"user_id": user_id}}, upsert=True)
-    
+
     await message.reply_text(
-        "📩 **Welcome to Temp Mail Bot!**\n\nGenerate a temporary email with `/new`.\nUse `/stats` (Admin only) to check stats.",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📧 Generate Email", callback_data="generate_email")]])
+        "**📩 Welcome to Temp Mail Bot!**\n\n"
+        "🔹 Generate a temporary email using `/new`\n"
+        "🔹 Your email will expire in **10 minutes**\n"
+        "🔹 Click the button below to generate an email now!\n\n"
+        "**🔐 Safe & Secure Temp Mail Service**",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("📧 Generate Email", callback_data="generate_email")]
+        ])
     )
 
-# Command: Generate New Email
+# Generate New Email
 @bot.on_message(filters.command("new"))
 async def new_email(client, message):
     user_id = message.from_user.id
-    old_email = emails_collection.find_one({"user_id": user_id})
-    
-    if old_email:
+    existing_email = emails_collection.find_one({"user_id": user_id})
+
+    # Delete old email if exists
+    if existing_email:
         emails_collection.delete_one({"user_id": user_id})
-    
+
     email = generate_temp_email(user_id)
-    
+
     await message.reply_text(
-        f"📨 **Your Temporary Email:** `{email}`\n(This will expire in 10 minutes.)",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🗑️ Delete Email", callback_data="delete_email")]])
+        f"✅ **Temporary Email Generated!**\n\n"
+        f"📨 **Email:** `{email}`\n"
+        "🕒 **Expires in:** 10 minutes\n\n"
+        "**🔹 You can delete this email anytime using the button below.**",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🗑️ Delete Email", callback_data="delete_email")]
+        ])
     )
 
-# Command: Stats (Admin Only)
+# Admin Stats Command
 @bot.on_message(filters.command("stats") & filters.user(ADMIN_ID))
 async def stats(client, message):
     total_users = users_collection.count_documents({})
     total_emails = emails_collection.count_documents({})
-    
+
     await message.reply_text(
-        f"📊 **Bot Statistics:**\n👤 Users: {total_users}\n📩 Emails Generated: {total_emails}"
+        "**📊 Bot Statistics**\n\n"
+        f"👥 **Total Users:** {total_users}\n"
+        f"📩 **Emails Generated:** {total_emails}\n\n"
+        "**🔹 Admin Only Command**"
     )
 
-# Broadcast Function
+# Broadcast Feature for Admin
 @bot.on_message(filters.reply & filters.command("broadcast") & filters.user(ADMIN_ID))
 async def broadcast(client, message):
-    text = message.reply_to_message.text
+    broadcast_message = message.reply_to_message
+
+    if not broadcast_message:
+        await message.reply_text("❌ **Reply to a message with `/broadcast` to send it to all users.**")
+        return
+
     users = users_collection.find({})
-    
     sent_count = 0
+
     for user in users:
         try:
-            await bot.send_message(user["user_id"], text)
+            await bot.send_message(user["user_id"], broadcast_message.text)
             sent_count += 1
         except:
-            pass
-    
-    await message.reply_text(f"✅ Broadcast sent to {sent_count} users.")
+            pass  # Ignore errors (e.g., user blocked bot)
+
+    await message.reply_text(f"✅ **Broadcast sent to {sent_count} users.**")
 
 # Handle Inline Button Clicks
 @bot.on_callback_query()
 async def button(client, callback_query):
     user_id = callback_query.from_user.id
-    
+
     if callback_query.data == "generate_email":
-        old_email = emails_collection.find_one({"user_id": user_id})
-        if old_email:
-            await callback_query.message.edit_text(f"📨 **Your Existing Email:** `{old_email['email']}`\n(This will expire in 10 minutes.)")
+        existing_email = emails_collection.find_one({"user_id": user_id})
+        
+        if existing_email:
+            email = existing_email["email"]
         else:
             email = generate_temp_email(user_id)
-            await callback_query.message.edit_text(
-                f"📨 **Your Temporary Email:** `{email}`\n(This will expire in 10 minutes.)",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🗑️ Delete Email", callback_data="delete_email")]])
-            )
+
+        await callback_query.message.edit_text(
+            f"📨 **Your Temporary Email:** `{email}`\n"
+            "🕒 **Expires in:** 10 minutes\n\n"
+            "🔹 Click below to delete your email.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🗑️ Delete Email", callback_data="delete_email")]
+            ])
+        )
 
     elif callback_query.data == "delete_email":
         emails_collection.delete_one({"user_id": user_id})
-        await callback_query.message.edit_text("✅ Email Deleted Successfully!")
+        await callback_query.message.edit_text("✅ **Email Deleted Successfully!**")
 
 # Scheduler for Auto Email Deletion
 scheduler.add_job(delete_expired_emails, "interval", minutes=1)
