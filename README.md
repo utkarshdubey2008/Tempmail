@@ -79,10 +79,13 @@ python bot.py
 
 Alternatively, you can use the Heroku button to deploy:
 
+
+
 ## Deploy to Heroku 🚀  
 Click the button below to deploy your TempMail Bot instantly!  
 
 [![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/utkarshdubey2008/Tempmail)
+
 ### Usage
 
 - `/start` - Start the bot and get a welcome message
