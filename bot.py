@@ -3,15 +3,12 @@ import requests
 import time
 import threading
 import os
-import validators
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pymongo import MongoClient
 
-
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-OWNER_ID = int(os.getenv("OWNER_ID", "7758708579"))  
+OWNER_ID = int(os.getenv("OWNER_ID", "7758708579"))
 MONGO_URI = os.getenv("MONGO_URI")
-
 
 try:
     client = MongoClient(MONGO_URI)
@@ -20,25 +17,19 @@ try:
     print("✅ Connected to MongoDB!")
 except Exception as e:
     print(f"❌ MongoDB Connection Error: {e}")
-    exit(1)  
+    exit(1)
 
-# API URL CHANGE IF NEEDED
-BASE_URL = "https://tempmail.bjcoderx.workers.dev"
+API_URL = "https://10minutemail.net/address.api.php"
 
 bot = telebot.TeleBot(BOT_TOKEN)
-
-
 notified_emails = {}
-
 
 def get_user_email(user_id):
     user = users_collection.find_one({"user_id": user_id})
     return user.get("email") if user else None
 
-
 def save_user_email(user_id, email):
     users_collection.update_one({"user_id": user_id}, {"$set": {"email": email}}, upsert=True)
-
 
 def check_new_emails():
     while True:
@@ -46,29 +37,27 @@ def check_new_emails():
         for user in users:
             email = user.get("email")
             if not email:
-                continue  
+                continue
 
             try:
-                response = requests.get(f"{BASE_URL}/inbox/{email}").json()
-                
-                if response.get("status") == "ok" and response.get("messages"):
-                    for msg in response["messages"]:
-                        msg_id = msg["subject"] + msg["from"]
-                        
-                        
-                        if msg_id not in notified_emails.get(user["user_id"], set()):
-                            notified_emails.setdefault(user["user_id"], set()).add(msg_id)
-                            
-                            bot.send_message(
-                                user["user_id"],
-                                f"📩 *New Email Received!*\n\n📌 *Subject:* {msg['subject']}\n📧 *From:* {msg['from']}",
-                                parse_mode="Markdown"
-                            )
+                response = requests.get(API_URL).json()
+                mail_list = response.get("mail_list", [])
+
+                for msg in mail_list:
+                    msg_id = msg["mail_id"]
+
+                    if msg_id not in notified_emails.get(user["user_id"], set()):
+                        notified_emails.setdefault(user["user_id"], set()).add(msg_id)
+
+                        bot.send_message(
+                            user["user_id"],
+                            f"📩 *New Email Received!*\n\n📌 *Subject:* {msg['subject']}\n📧 *From:* {msg['from']}\n🔗 [View Email]({response['permalink']['url']})",
+                            parse_mode="Markdown"
+                        )
             except Exception as e:
                 print(f"❌ Email Fetch Error: {e}")
 
-        time.sleep(10)  
-
+        time.sleep(10)
 
 threading.Thread(target=check_new_emails, daemon=True).start()
 
@@ -84,10 +73,9 @@ def start(message):
         InlineKeyboardButton("👨‍💻 Developer", url=f"tg://user?id={OWNER_ID}")
     )
 
-    bot.send_photo(
+    bot.send_message(
         message.chat.id,
-        "https://envs.sh/tdD.jpg",  
-        caption="👋 *Welcome to TempMail Bot!*\n\n📩 Generate temporary emails & receive messages instantly.\n\nClick `/new` to generate your email!",
+        "👋 *Welcome to TempMail Bot!*\n\n📩 Generate temporary emails & receive messages instantly.\n\nClick `/new` to generate your email!",
         parse_mode="Markdown",
         reply_markup=markup,
     )
@@ -95,19 +83,18 @@ def start(message):
 @bot.message_handler(commands=["new"])
 def generate_email(message):
     try:
-        response = requests.get(f"{BASE_URL}/gen").json()
+        response = requests.get(API_URL).json()
         
-        if response.get("status") == "ok":
-            email = response["mail"]
+        if response.get("mail_get_mail"):
+            email = response["mail_get_mail"]
             save_user_email(message.chat.id, email)
-            
             
             markup = InlineKeyboardMarkup()
             markup.add(InlineKeyboardButton("🗑️ Delete Email", callback_data="delete_email"))
 
             bot.send_message(
                 message.chat.id,
-                f"✅ *New Temporary Email Created!*\n\n📧 *Your Email:* `{email}`\n\n_Use this email to receive messages._",
+                f"✅ *New Temporary Email Created!*\n\n📧 *Your Email:* `{email}`\n🔗 [Check Inbox]({response['permalink']['url']})",
                 parse_mode="Markdown",
                 reply_markup=markup,
             )
