@@ -6,12 +6,11 @@ import os
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pymongo import MongoClient
 
-# Load credentials from environment variables
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = int(os.getenv("OWNER_ID", "7758708579"))  # Ensure it's an integer
 MONGO_URI = os.getenv("MONGO_URI")
 
-# MongoDB Connection
+
 client = MongoClient(MONGO_URI)
 db = client["TempMailBot"]
 users_collection = db["users"]
@@ -21,19 +20,17 @@ BASE_URL = "https://tempmail.bjcoderx.workers.dev"
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Dictionary to track notified emails for each user
 notified_emails = {}
 
-# Fetch user email from the database
+
 def get_user_email(user_id):
     user = users_collection.find_one({"user_id": user_id})
     return user["email"] if user else None
 
-# Save user email in the database
+
 def save_user_email(user_id, email):
     users_collection.update_one({"user_id": user_id}, {"$set": {"email": email}}, upsert=True)
 
-# Fetch and notify new emails (Runs in Background)
 def check_new_emails():
     while True:
         users = users_collection.find()
@@ -45,7 +42,7 @@ def check_new_emails():
                 for msg in response["messages"]:
                     msg_id = msg["subject"] + msg["from"]
                     
-                    # Prevent duplicates for each user separately
+                    
                     if msg_id not in notified_emails.get(user["user_id"], set()):
                         notified_emails.setdefault(user["user_id"], set()).add(msg_id)
                         
@@ -54,9 +51,8 @@ def check_new_emails():
                             f"📩 *New Email Received!*\n\n📌 *Subject:* {msg['subject']}\n📧 *From:* {msg['from']}",
                             parse_mode="Markdown"
                         )
-        time.sleep(10)  # Reduce load by checking every 10 seconds
-
-# Start email-checking thread
+        time.sleep(10)  
+        
 threading.Thread(target=check_new_emails, daemon=True).start()
 
 @bot.message_handler(commands=["start"])
@@ -87,7 +83,7 @@ def generate_email(message):
         email = response["mail"]
         save_user_email(message.chat.id, email)
         
-        # Send email details with a "Delete" button
+        
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton("🗑️ Delete Email", callback_data="delete_email"))
 
