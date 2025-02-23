@@ -8,7 +8,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 # Bot Configuration
 API_ID = 25482744
 API_HASH = "e032d6e5c05a5d0bfe691480541d64f4"
-BOT_TOKEN = "8017963270:AAF4yR4mUnQEKSKX7at2Vwb1zYYXIELixxo"
+BOT_TOKEN = "8017963270:7614761700:AAFl3dyzcl-LpIf2PUUuwSViwrQ1ZWPVBN4"
 ADMIN_ID = 7758708579
 
 # MongoDB Connection
