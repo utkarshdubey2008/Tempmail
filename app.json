@@ -1,0 +1,24 @@
+{
+  "name": "TempMail Bot",
+  "description": "A Telegram bot that generates temporary emails and fetches messages.",
+  "repository": "https://github.com/utkarshdubey2008/Tempmail",
+  "env": {
+    "BOT_TOKEN": {
+      "description": "Your Telegram Bot Token",
+      "required": true
+    },
+    "OWNER_ID": {
+      "description": "Your Telegram User ID (for broadcasts)",
+      "required": true
+    },
+    "MONGO_URI": {
+      "description": "Your MongoDB URI",
+      "required": true
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ]
+}
