@@ -2,19 +2,19 @@ import telebot
 import requests
 import time
 import threading
+import os
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pymongo import MongoClient
 
-# Bot Token & Admin ID
-BOT_TOKEN = "8017963270:AAEP8fuQCfafksotW8lRTfU0SDHj1RboaTk"
-OWNER_ID = 7758708579
+# Load credentials from environment variables
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+OWNER_ID = int(os.getenv("OWNER_ID", "7758708579"))  # Ensure it's an integer
+MONGO_URI = os.getenv("MONGO_URI")
 
 # MongoDB Connection
-MONGO_URI = "mongodb+srv://emailbot:utkarsh2008@cluster0.08udh.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 client = MongoClient(MONGO_URI)
 db = client["TempMailBot"]
 users_collection = db["users"]
-emails_collection = db["emails"]
 
 # TempMail API Base URL
 BASE_URL = "https://tempmail.bjcoderx.workers.dev"
@@ -29,7 +29,7 @@ def get_user_email(user_id):
     user = users_collection.find_one({"user_id": user_id})
     return user["email"] if user else None
 
-# Save user email in database
+# Save user email in the database
 def save_user_email(user_id, email):
     users_collection.update_one({"user_id": user_id}, {"$set": {"email": email}}, upsert=True)
 
@@ -68,7 +68,7 @@ def start(message):
         InlineKeyboardButton("💬 Support", url="https://t.me/RagnarSpace"),
     )
     markup.add(
-        InlineKeyboardButton("👨‍💻 Developer", url="tg://user?id=7758708579")
+        InlineKeyboardButton("👨‍💻 Developer", url=f"tg://user?id={OWNER_ID}")
     )
 
     bot.send_photo(
