@@ -1,37 +1,39 @@
 # TempMail Bot
 
+![TempMail Bot](https://your-image-url.com/banner.jpg)  
+
 TempMail Bot is a Telegram bot that generates temporary email addresses and notifies users of new emails.
 
 ## Features
 
-- Generate temporary email addresses
-- Receive email notifications in Telegram
-- Manage temporary emails
+- 📧 Generate temporary email addresses
+- 🔔 Receive email notifications in Telegram
+- 🗑️ Manage temporary emails
 
 ## Getting Started
 
 ### Prerequisites
 
-- Python 3.6 or higher
-- MongoDB Atlas account
-- Telegram Bot Token
+- ![Python](https://img.shields.io/badge/Python-3.6%2B-blue)
+- ![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-green)
+- ![Telegram](https://img.shields.io/badge/Telegram-Bot_Token-blue)
 
 ### Installation
 
-1. Clone the repository:
+1. **Clone the repository:**
 
    ```sh
    git clone https://github.com/utkarshdubey2008/Tempmail.git
    cd Tempmail
    ```
 
-2. Install the required Python packages:
+2. **Install the required Python packages:**
 
    ```sh
    pip install -r requirements.txt
    ```
 
-3. Create a `.env` file and add your environment variables:
+3. **Create a `.env` file and add your environment variables:**
 
    ```env
    BOT_TOKEN=your_telegram_bot_token
@@ -48,13 +50,13 @@ python bot.py
 
 ### Deploying to Heroku
 
-1. Create a new Heroku app:
+1. **Create a new Heroku app:**
 
    ```sh
    heroku create your-app-name
    ```
 
-2. Add the necessary environment variables to Heroku:
+2. **Add the necessary environment variables to Heroku:**
 
    ```sh
    heroku config:set BOT_TOKEN=your_telegram_bot_token
@@ -63,23 +65,45 @@ python bot.py
    heroku config:set BASE_URL=https://tempmail.bjcoderx.workers.dev
    ```
 
-3. Deploy the code to Heroku:
+3. **Deploy the code to Heroku:**
 
    ```sh
    git push heroku main
    ```
 
-4. Scale the worker to run the bot:
+4. **Scale the worker to run the bot:**
 
    ```sh
    heroku ps:scale worker=1
    ```
+
+Alternatively, you can use the Heroku button to deploy:
+
+[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy)
 
 ### Usage
 
 - `/start` - Start the bot and get a welcome message
 - `/new` - Generate a new temporary email
 - Click "Delete Email" to delete the current temporary email
+
+### Screenshots
+
+![Welcome Message](https://your-image-url.com/welcome.png)
+*Welcome message from the bot.*
+
+![New Email](https://your-image-url.com/new-email.png)
+*Notification of a new email.*
+
+### About the Owner
+
+👤 **Utkarsh Dubey**
+
+![GitHub Profile](https://avatars.githubusercontent.com/utkarshdubey2008)
+
+- 🏷️ **GitHub:** [utkarshdubey2008](https://github.com/utkarshdubey2008)
+- 📝 **LinkedIn:** [Utkarsh Dubey](https://www.linkedin.com/in/utkarshdubey2008)
+- 📧 **Email:** [utkarsh.dubey@example.com](mailto:utkarsh.dubey@example.com)
 
 ### Contributing
 
@@ -92,3 +116,5 @@ python bot.py
 ### License
 
 This project is licensed under the MIT License.
+
+![MIT License](https://your-image-url.com/license.png)
