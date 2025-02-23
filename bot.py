@@ -19,10 +19,10 @@ except Exception as e:
     print(f"❌ MongoDB Connection Error: {e}")
     exit(1)
 
-API_URL = "https://10minutemail.net/address.api.php"
-
 bot = telebot.TeleBot(BOT_TOKEN)
 notified_emails = {}
+
+TEN_MIN_MAIL_API = "https://10minutemail.com/api/v1/mailbox"
 
 def get_user_email(user_id):
     user = users_collection.find_one({"user_id": user_id})
@@ -30,6 +30,9 @@ def get_user_email(user_id):
 
 def save_user_email(user_id, email):
     users_collection.update_one({"user_id": user_id}, {"$set": {"email": email}}, upsert=True)
+
+def delete_user_email(user_id):
+    users_collection.delete_one({"user_id": user_id})
 
 def check_new_emails():
     while True:
@@ -40,18 +43,18 @@ def check_new_emails():
                 continue
 
             try:
-                response = requests.get(API_URL).json()
-                mail_list = response.get("mail_list", [])
+                response = requests.get(f"{TEN_MIN_MAIL_API}/{email}").json()
+                mail_list = response.get("emails", [])
 
                 for msg in mail_list:
-                    msg_id = msg["mail_id"]
+                    msg_id = msg["id"]
 
                     if msg_id not in notified_emails.get(user["user_id"], set()):
                         notified_emails.setdefault(user["user_id"], set()).add(msg_id)
 
                         bot.send_message(
                             user["user_id"],
-                            f"📩 *New Email Received!*\n\n📌 *Subject:* {msg['subject']}\n📧 *From:* {msg['from']}\n🔗 [View Email]({response['permalink']['url']})",
+                            f"📩 *New Email Received!*\n\n📌 *Subject:* {msg['subject']}\n📧 *From:* {msg['sender']}\n📜 *Message:* {msg['body']}",
                             parse_mode="Markdown"
                         )
             except Exception as e:
@@ -83,10 +86,10 @@ def start(message):
 @bot.message_handler(commands=["new"])
 def generate_email(message):
     try:
-        response = requests.get(API_URL).json()
+        response = requests.post(TEN_MIN_MAIL_API).json()
         
-        if response.get("mail_get_mail"):
-            email = response["mail_get_mail"]
+        if "address" in response:
+            email = response["address"]
             save_user_email(message.chat.id, email)
             
             markup = InlineKeyboardMarkup()
@@ -94,7 +97,7 @@ def generate_email(message):
 
             bot.send_message(
                 message.chat.id,
-                f"✅ *New Temporary Email Created!*\n\n📧 *Your Email:* `{email}`\n🔗 [Check Inbox]({response['permalink']['url']})",
+                f"✅ *New Temporary Email Created!*\n\n📧 *Your Email:* `{email}`",
                 parse_mode="Markdown",
                 reply_markup=markup,
             )
@@ -106,6 +109,7 @@ def generate_email(message):
 
 @bot.callback_query_handler(func=lambda call: call.data == "delete_email")
 def delete_email(call):
+    delete_user_email(call.message.chat.id)
     bot.answer_callback_query(call.id)
     bot.delete_message(call.message.chat.id, call.message.message_id)
     bot.send_message(call.message.chat.id, "🗑️ *Your email has been deleted.*\n\nUse /new to generate a new one.", parse_mode="Markdown")
