@@ -12,7 +12,7 @@ BOT_TOKEN = "8017963270:AAF4yR4mUnQEKSKX7at2Vwb1zYYXIELixxo"
 ADMIN_ID = 7758708579
 
 # MongoDB Connection
-MONGO_URI = "mongodb+srv://ragnar:jqQSlKYchqlwdHiu@cluster0.dtjsf.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+MONGO_URI = "mongodb+srv://emailbot:utkarsh2008@cluster0.08udh.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 client = MongoClient(MONGO_URI)
 db = client["temp_mail_bot"]
 users_collection = db["users"]
