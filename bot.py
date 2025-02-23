@@ -1,10 +1,10 @@
 import telebot
-import requests
-import time
 import threading
 import os
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+import time
 from pymongo import MongoClient
+from tempmail import EMail
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = int(os.getenv("OWNER_ID", "7758708579"))
@@ -22,11 +22,9 @@ except Exception as e:
 bot = telebot.TeleBot(BOT_TOKEN)
 notified_emails = {}
 
-TEN_MIN_MAIL_API = "https://10minutemail.com/api/v1/mailbox"
-
 def get_user_email(user_id):
     user = users_collection.find_one({"user_id": user_id})
-    return user.get("email") if user else None
+    return user["email"] if user else None
 
 def save_user_email(user_id, email):
     users_collection.update_one({"user_id": user_id}, {"$set": {"email": email}}, upsert=True)
@@ -38,23 +36,23 @@ def check_new_emails():
     while True:
         users = users_collection.find()
         for user in users:
-            email = user.get("email")
-            if not email:
+            email_address = user.get("email")
+            if not email_address:
                 continue
 
             try:
-                response = requests.get(f"{TEN_MIN_MAIL_API}/{email}").json()
-                mail_list = response.get("emails", [])
+                email = EMail(email_address)
+                inbox = email.get_inbox()
 
-                for msg in mail_list:
-                    msg_id = msg["id"]
+                for msg_info in inbox:
+                    msg_id = msg_info.id
 
                     if msg_id not in notified_emails.get(user["user_id"], set()):
                         notified_emails.setdefault(user["user_id"], set()).add(msg_id)
 
                         bot.send_message(
                             user["user_id"],
-                            f"📩 *New Email Received!*\n\n📌 *Subject:* {msg['subject']}\n📧 *From:* {msg['sender']}\n📜 *Message:* {msg['body']}",
+                            f"📩 *New Email Received!*\n\n📌 *Subject:* {msg_info.subject}\n📧 *From:* {msg_info.from_addr}\n📜 *Message:* {msg_info.body}",
                             parse_mode="Markdown"
                         )
             except Exception as e:
@@ -86,23 +84,18 @@ def start(message):
 @bot.message_handler(commands=["new"])
 def generate_email(message):
     try:
-        response = requests.post(TEN_MIN_MAIL_API).json()
-        
-        if "address" in response:
-            email = response["address"]
-            save_user_email(message.chat.id, email)
-            
-            markup = InlineKeyboardMarkup()
-            markup.add(InlineKeyboardButton("🗑️ Delete Email", callback_data="delete_email"))
+        email = EMail()
+        save_user_email(message.chat.id, email.address)
 
-            bot.send_message(
-                message.chat.id,
-                f"✅ *New Temporary Email Created!*\n\n📧 *Your Email:* `{email}`",
-                parse_mode="Markdown",
-                reply_markup=markup,
-            )
-        else:
-            bot.send_message(message.chat.id, "❌ Failed to generate an email. Try again later.")
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton("🗑️ Delete Email", callback_data="delete_email"))
+
+        bot.send_message(
+            message.chat.id,
+            f"✅ *New Temporary Email Created!*\n\n📧 *Your Email:* `{email.address}`",
+            parse_mode="Markdown",
+            reply_markup=markup,
+        )
     except Exception as e:
         print(f"❌ Email Generation Error: {e}")
         bot.send_message(message.chat.id, "❌ Something went wrong. Please try again later.")
