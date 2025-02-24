@@ -27,11 +27,11 @@ bot = telebot.TeleBot(BOT_TOKEN)
 class Mails:
     """Class to interact with TempMail API."""
 
-    BASE_URL = "https://tempmail.bjcoderx.workers.dev"
+    BASE_URL = "https://tempmail.glitchy.workers.dev"
 
     def __init__(self):
         """Initialize the session and store the email."""
-        response = rq.get(f"{self.BASE_URL}/gen")
+        response = rq.get(f"{self.BASE_URL}/get")
         self.emailAddress = response.json().get("mail")
 
     def getEmailAddress(self) -> str:
@@ -39,7 +39,7 @@ class Mails:
 
     def getAllEmails(self) -> list:
         """Retrieve all received emails."""
-        response = rq.get(f"{self.BASE_URL}/inbox/{self.emailAddress}")
+        response = rq.get(f"{self.BASE_URL}/see", params={"mail": self.emailAddress})
         return response.json().get("messages")
 
 
@@ -124,7 +124,7 @@ def refresh_email(call):
 
         if messages:
             message_text = "\n\n".join(
-                [f"📌 *Subject:* {msg['subject']}\n📧 *From:* {msg['from']}\n✉️ *Preview:* {msg.get('preview', 'No preview available')}"
+                [f"📌 *Subject:* {msg['textSubject']}\n📧 *From:* {msg['textFrom']}\n✉️ *Preview:* {msg.get('body', 'No preview available')}"
                  for msg in messages]
             )
 
