@@ -1,7 +1,7 @@
 import telebot
-import time
 import os
-import requests as rq
+import requests
+import json
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pymongo import MongoClient
 
@@ -23,46 +23,73 @@ except Exception as e:
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-
-class Mails:
+class TempMailAPI:
     """Class to interact with TempMail API."""
 
-    BASE_URL = "https://tempmail.glitchy.workers.dev"
+    BASE_URL = "https://www.emailnator.com/"
 
     def __init__(self):
         """Initialize the session and store the email."""
-        response = rq.get(f"{self.BASE_URL}/get")
-        self.emailAddress = response.json().get("mail")
+        session = self.getRequest()
+        if session:
+            self.csrf = session.get("csrf")
+            self.s = session.get("session")
+            self.emailAddress = self.newEmail(["plusGmail", "dotGmail", "googleMail"])
+
+    def getRequest(self):
+        try:
+            s = requests.Session()
+            r = s.get(self.BASE_URL + "api", headers={"user-agent": "Mozilla/5.0", "accept": "*/*"}, verify=False)
+            csrf = r.headers.get("set-cookie").split("=")[1].split(";")[0].replace("%3D", "=")
+            return {"csrf": csrf, "session": s}
+        except:
+            return None
+
+    def newEmail(self, types=["plusGmail", "dotGmail", "googleMail"]):
+        try:
+            r = self.s.post(self.BASE_URL + "generate-email", json={"email": types}, headers={
+                "user-agent": "Mozilla/5.0",
+                "x-xsrf-token": self.csrf,
+                "content-type": "application/json",
+                "x-requested-with": "XMLHttpRequest"
+            }, verify=False)
+            return r.json().get("email", [None])[0] if r.status_code == 200 else None
+        except:
+            return None
 
     def getEmailAddress(self) -> str:
         return self.emailAddress
 
     def getAllEmails(self) -> list:
         """Retrieve all received emails."""
-        response = rq.get(f"{self.BASE_URL}/see", params={"mail": self.emailAddress})
-        return response.json().get("messages")
-
+        try:
+            r = self.s.post(self.BASE_URL + "message-list", json={"email": self.emailAddress}, headers={
+                "user-agent": "Mozilla/5.0",
+                "x-xsrf-token": self.csrf,
+                "content-type": "application/json",
+                "x-requested-with": "XMLHttpRequest"
+            }, verify=False)
+            msgs = r.json().get("messageData")
+            return msgs[1:6] if r.status_code == 200 and msgs else []
+        except:
+            return []
 
 # Fetch user email from the database
 def get_user_email(user_id):
     user = users_collection.find_one({"user_id": user_id})
     return user.get("email") if user else None
 
-
 # Save user email in the database
 def save_user_email(user_id, email):
     users_collection.update_one({"user_id": user_id}, {"$set": {"email": email}}, upsert=True)
-
 
 # Delete user email from the database
 def delete_user_email(user_id):
     users_collection.delete_one({"user_id": user_id})
 
-
 # Move email to trash in the database
 def move_email_to_trash(email):
     trash_collection.insert_one(email)
-
 
 @bot.message_handler(commands=["start"])
 def start(message):
@@ -83,11 +110,10 @@ def start(message):
         reply_markup=markup,
     )
 
-
 @bot.message_handler(commands=["new"])
 def generate_email(message):
     try:
-        mail = Mails()  # Create a new temp email
+        mail = TempMailAPI()  # Create a new temp email
         email = mail.getEmailAddress()  # Get email address
 
         save_user_email(message.chat.id, email)
@@ -109,7 +135,6 @@ def generate_email(message):
         print(f"❌ Email Generation Error: {e}")
         bot.send_message(message.chat.id, "❌ Something went wrong. Please try again later.")
 
-
 @bot.callback_query_handler(func=lambda call: call.data == "refresh")
 def refresh_email(call):
     user_email = get_user_email(call.message.chat.id)
@@ -118,13 +143,13 @@ def refresh_email(call):
         return
 
     try:
-        mail = Mails()
+        mail = TempMailAPI()
         mail.emailAddress = user_email  # Use the stored user email
         messages = mail.getAllEmails()
 
         if messages:
             message_text = "\n\n".join(
-                [f"📌 *Subject:* {msg['textSubject']}\n📧 *From:* {msg['textFrom']}\n✉️ *Preview:* {msg.get('body', 'No preview available')}"
+                [f"📌 *Subject:* {msg['textSubject']}\n📧 *From:* {msg['textFrom']}\n✉️ *Body:* {msg.get('body', 'No preview available')}"
                  for msg in messages]
             )
 
@@ -139,7 +164,6 @@ def refresh_email(call):
         print(f"❌ Email Fetch Error: {e}")
         bot.answer_callback_query(call.id, "❌ Failed to refresh inbox.")
 
-
 @bot.callback_query_handler(func=lambda call: call.data == "delete_email")
 def delete_email(call):
     delete_user_email(call.message.chat.id)
@@ -147,7 +171,6 @@ def delete_email(call):
     bot.delete_message(call.message.chat.id, call.message.message_id)
     bot.send_message(call.message.chat.id, "🗑️ *Your email has been deleted.*\n\nUse /new to generate a new one.",
                      parse_mode="Markdown")
-
 
 print("✅ Bot is running...")
 bot.polling()
