@@ -4,10 +4,12 @@ import os
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pymongo import MongoClient
 
+# Load credentials from environment variables
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-OWNER_ID = int(os.getenv("OWNER_ID", "7758708579"))
+OWNER_ID = int(os.getenv("OWNER_ID", "7758708579"))  # Ensure it's an integer
 MONGO_URI = os.getenv("MONGO_URI")
 
+# MongoDB Connection
 try:
     client = MongoClient(MONGO_URI)
     db = client["TempMailBot"]
@@ -23,10 +25,10 @@ bot = telebot.TeleBot(BOT_TOKEN)
 
 def get_user_email(user_id):
     user = users_collection.find_one({"user_id": user_id})
-    return user.get("email") if user else None
+    return user.get("email"), user.get("email_key") if user else (None, None)
 
-def save_user_email(user_id, email, permalink):
-    users_collection.update_one({"user_id": user_id}, {"$set": {"email": email, "permalink": permalink}}, upsert=True)
+def save_user_email(user_id, email, email_key, permalink):
+    users_collection.update_one({"user_id": user_id}, {"$set": {"email": email, "email_key": email_key, "permalink": permalink}}, upsert=True)
 
 @bot.message_handler(commands=["start"])
 def start(message):
@@ -35,8 +37,11 @@ def start(message):
     markup.add(
         InlineKeyboardButton("📖 Docs", url="https://t.me/RagnarSpace"),
         InlineKeyboardButton("💬 Support", url="https://t.me/RagnarSpace"),
+    )
+    markup.add(
         InlineKeyboardButton("👨‍💻 Developer", url=f"tg://user?id={OWNER_ID}")
     )
+
     bot.send_message(
         message.chat.id,
         "👋 *Welcome to TempMail Bot!*\n\n📩 Generate temporary emails & receive messages instantly.\n\nClick `/new` to generate your email!",
@@ -48,10 +53,12 @@ def start(message):
 def generate_email(message):
     try:
         response = requests.get(API_URL).json()
+        
         if response.get("mail_get_mail"):
             email = response["mail_get_mail"]
+            email_key = response["mail_get_key"]
             permalink = response["permalink"]["url"]
-            save_user_email(message.chat.id, email, permalink)
+            save_user_email(message.chat.id, email, email_key, permalink)
 
             markup = InlineKeyboardMarkup()
             markup.add(
@@ -78,16 +85,22 @@ def refresh_email(call):
         bot.answer_callback_query(call.id, "❌ No email found. Use /new to generate one.")
         return
 
+    email = user["email"]
+    email_key = user["email_key"]
+
     try:
         response = requests.get(API_URL).json()
-        email = response.get("mail_get_mail")
-        mail_list = response.get("mail_list", [])
         
+        if response.get("mail_get_mail") != email:
+            bot.answer_callback_query(call.id, "❌ Your email expired. Use /new to get a new one.")
+            return
+
+        mail_list = response.get("mail_list", [])
         if not mail_list:
             bot.answer_callback_query(call.id, "📭 No new emails yet.")
             return
 
-        emails_text = "📩 *Your Emails:*\n\n"
+        emails_text = f"✅ *Temporary Email:* `{email}`\n\n📩 *Your Emails:*\n\n"
         for mail in mail_list:
             emails_text += f"📌 *Subject:* {mail['subject']}\n📧 *From:* {mail['from']}\n🕒 *Received:* {mail['datetime2']}\n🔗 [View Email]({response['permalink']['url']})\n\n"
 
@@ -100,7 +113,7 @@ def refresh_email(call):
         bot.edit_message_text(
             chat_id=call.message.chat.id,
             message_id=call.message.message_id,
-            text=f"✅ *Temporary Email:* `{email}`\n\n{emails_text}",
+            text=emails_text,
             parse_mode="Markdown",
             reply_markup=markup,
         )
