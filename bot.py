@@ -7,7 +7,7 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pymongo import MongoClient
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-OWNER_ID = int(os.getenv("OWNER_ID", "7758708579"))  
+OWNER_ID = int(os.getenv("OWNER_ID", "7758708579"))
 MONGO_URI = os.getenv("MONGO_URI")
 
 try:
@@ -17,7 +17,7 @@ try:
     print("✅ Connected to MongoDB!")
 except Exception as e:
     print(f"❌ MongoDB Connection Error: {e}")
-    exit(1)  
+    exit(1)
 
 API_URL = "https://10minutemail.net/address.api.php"
 
@@ -31,34 +31,23 @@ def get_user_email(user_id):
 def save_user_email(user_id, email):
     users_collection.update_one({"user_id": user_id}, {"$set": {"email": email}}, upsert=True)
 
-def check_new_emails():
-    while True:
-        users = users_collection.find()
-        for user in users:
-            email = user.get("email")
-            if not email:
-                continue  
+def check_new_emails(user_id):
+    email = get_user_email(user_id)
+    if not email:
+        return None
+    
+    try:
+        response = requests.get(API_URL).json()
+        mail_list = response.get("mail_list", [])
 
-            try:
-                response = requests.get(API_URL).json()
-                mail_list = response.get("mail_list", [])
-
-                for msg in mail_list:
-                    msg_id = msg["mail_id"]
-                    if msg_id not in notified_emails.get(user["user_id"], set()):
-                        notified_emails.setdefault(user["user_id"], set()).add(msg_id)
-
-                        bot.send_message(
-                            user["user_id"],
-                            f"📩 *New Email Received!*\n\n📌 *Subject:* {msg['subject']}\n📧 *From:* {msg['from']}\n🔗 [View Email]({response['permalink']['url']})",
-                            parse_mode="Markdown"
-                        )
-            except Exception as e:
-                print(f"❌ Email Fetch Error: {e}")
-
-        time.sleep(10)  
-
-threading.Thread(target=check_new_emails, daemon=True).start()
+        if mail_list:
+            latest_email = mail_list[0]
+            return f"📩 *New Email Received!*\n\n📌 *Subject:* {latest_email['subject']}\n📧 *From:* {latest_email['from']}\n🔗 [View Email]({response['permalink']['url']})"
+        else:
+            return "❌ No new emails yet. Try again later."
+    except Exception as e:
+        print(f"❌ Email Fetch Error: {e}")
+        return "❌ Error fetching emails. Please try again later."
 
 @bot.message_handler(commands=["start"])
 def start(message):
@@ -67,8 +56,8 @@ def start(message):
     markup.add(
         InlineKeyboardButton("📖 Docs", url="https://t.me/RagnarSpace"),
         InlineKeyboardButton("💬 Support", url="https://t.me/RagnarSpace"),
+        InlineKeyboardButton("👨‍💻 Developer", url=f"tg://user?id={OWNER_ID}")
     )
-    markup.add(InlineKeyboardButton("👨‍💻 Developer", url=f"tg://user?id={OWNER_ID}"))
 
     bot.send_message(
         message.chat.id,
@@ -87,6 +76,7 @@ def generate_email(message):
             save_user_email(message.chat.id, email)
             
             markup = InlineKeyboardMarkup()
+            markup.add(InlineKeyboardButton("🔁 Refresh", callback_data="refresh_email"))
             markup.add(InlineKeyboardButton("🗑️ Delete Email", callback_data="delete_email"))
 
             bot.send_message(
@@ -101,6 +91,12 @@ def generate_email(message):
         print(f"❌ Email Generation Error: {e}")
         bot.send_message(message.chat.id, "❌ Something went wrong. Please try again later.")
 
+@bot.callback_query_handler(func=lambda call: call.data == "refresh_email")
+def refresh_email(call):
+    bot.answer_callback_query(call.id)
+    email_status = check_new_emails(call.message.chat.id)
+    bot.send_message(call.message.chat.id, email_status, parse_mode="Markdown")
+
 @bot.callback_query_handler(func=lambda call: call.data == "delete_email")
 def delete_email(call):
     bot.answer_callback_query(call.id)
@@ -110,8 +106,7 @@ def delete_email(call):
 @bot.message_handler(func=lambda message: message.reply_to_message and message.chat.id == OWNER_ID)
 def broadcast(message):
     users = users_collection.find()
-    success_count = 0
-    failure_count = 0
+    success_count, failure_count = 0, 0
 
     for user in users:
         try:
