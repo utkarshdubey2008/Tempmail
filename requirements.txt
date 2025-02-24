@@ -5,3 +5,5 @@ dnspython
 validators
 tempmail-python
 python-10minutemail
+urlib3
+flask
