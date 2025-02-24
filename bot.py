@@ -4,6 +4,12 @@ import requests
 import json
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pymongo import MongoClient
+import urllib3
+from warnings import simplefilter
+
+# Suppress InsecureRequestWarning
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+simplefilter('ignore', urllib3.exceptions.InsecureRequestWarning)
 
 # Load credentials from environment variables
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -31,6 +37,7 @@ class TempMailAPI:
     def __init__(self):
         """Initialize the session and store the email."""
         session = self.getRequest()
+        self.emailAddress = None
         if session:
             self.csrf = session.get("csrf")
             self.s = session.get("session")
@@ -115,6 +122,9 @@ def generate_email(message):
     try:
         mail = TempMailAPI()  # Create a new temp email
         email = mail.getEmailAddress()  # Get email address
+
+        if not email:
+            raise Exception("Failed to generate email")
 
         save_user_email(message.chat.id, email)
 
