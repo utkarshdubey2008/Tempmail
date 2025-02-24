@@ -4,3 +4,4 @@ pymongo
 dnspython
 validators
 tempmail-python
+python-10minutemail
