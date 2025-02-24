@@ -15,6 +15,7 @@ try:
     client = MongoClient(MONGO_URI)
     db = client["TempMailBot"]
     users_collection = db["users"]
+    trash_collection = db["trash"]
     print("✅ Connected to MongoDB!")
 except Exception as e:
     print(f"❌ MongoDB Connection Error: {e}")
@@ -24,56 +25,22 @@ bot = telebot.TeleBot(BOT_TOKEN)
 
 
 class Mails:
-    """Class to interact with 10MinuteMail API."""
+    """Class to interact with TempMail API."""
+
+    BASE_URL = "https://tempmail.bjcoderx.workers.dev"
 
     def __init__(self):
         """Initialize the session and store the email."""
-        response = rq.get("https://10minutemail.com/session/address")
-        self.cookies = response.headers["set-cookie"]
-        self.emailAddress = response.json().get("address")
+        response = rq.get(f"{self.BASE_URL}/gen")
+        self.emailAddress = response.json().get("mail")
 
     def getEmailAddress(self) -> str:
         return self.emailAddress
 
-    def getEmailCount(self) -> int:
-        """Get count of emails received."""
-        response = rq.get(
-            "https://10minutemail.com/messages/messageCount",
-            headers={"Cookie": self.cookies},
-        )
-        return response.json().get("messageCount")
-
     def getAllEmails(self) -> list:
         """Retrieve all received emails."""
-        emails = rq.get(
-            "https://10minutemail.com/messages/messagesAfter/0",
-            headers={"Cookie": self.cookies},
-        )
-        return emails.json()
-
-    def getSecondsLeft(self) -> int:
-        """Get remaining time before email expires."""
-        response = rq.get(
-            "https://10minutemail.com/session/secondsLeft",
-            headers={"Cookie": self.cookies},
-        )
-        return int(response.json().get("secondsLeft"))
-
-    def isExpired(self) -> bool:
-        """Check if the session is expired."""
-        response = rq.get(
-            "https://10minutemail.com/session/expired",
-            headers={"Cookie": self.cookies},
-        )
-        return response.json().get("expired")
-
-    def refreshTime(self) -> bool:
-        """Extend the email session duration."""
-        response = rq.get(
-            "https://10minutemail.com/session/reset",
-            headers={"Cookie": self.cookies},
-        )
-        return response.json().get("Response") == "reset"
+        response = rq.get(f"{self.BASE_URL}/inbox/{self.emailAddress}")
+        return response.json().get("messages")
 
 
 # Fetch user email from the database
@@ -90,6 +57,11 @@ def save_user_email(user_id, email):
 # Delete user email from the database
 def delete_user_email(user_id):
     users_collection.delete_one({"user_id": user_id})
+
+
+# Move email to trash in the database
+def move_email_to_trash(email):
+    trash_collection.insert_one(email)
 
 
 @bot.message_handler(commands=["start"])
@@ -147,14 +119,18 @@ def refresh_email(call):
 
     try:
         mail = Mails()
-        email_count = mail.getEmailCount()
+        mail.emailAddress = user_email  # Use the stored user email
+        messages = mail.getAllEmails()
 
-        if email_count > 0:
-            messages = mail.getAllEmails()
+        if messages:
             message_text = "\n\n".join(
-                [f"📌 *Subject:* {msg['subject']}\n📧 *From:* {msg['sender']}\n✉️ *Preview:* {msg['bodyPreview']}"
+                [f"📌 *Subject:* {msg['subject']}\n📧 *From:* {msg['from']}\n✉️ *Preview:* {msg.get('preview', 'No preview available')}"
                  for msg in messages]
             )
+
+            # Move emails to trash collection
+            for msg in messages:
+                move_email_to_trash(msg)
 
             bot.send_message(call.message.chat.id, f"📩 *New Emails Received!*\n\n{message_text}", parse_mode="Markdown")
         else:
